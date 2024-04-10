@@ -53,10 +53,12 @@ type Producer struct {
 // to retrieve metadata about the command after the
 // response is received.
 type ProducerTransaction struct {
-	cmd      *Command
-	doneChan chan *ProducerTransaction
-	Error    error         // the error (or nil) of the publish command
-	Args     []interface{} // the slice of variadic arguments passed to PublishAsync or MultiPublishAsync
+	cmd         *Command
+	doneChan    chan *ProducerTransaction
+	Error       error         // the error (or nil) of the publish command
+	Args        []interface{} // the slice of variadic arguments passed to PublishAsync or MultiPublishAsync
+	retryCount  int
+	backoffTime time.Duration
 }
 
 func (t *ProducerTransaction) finish() {
@@ -120,8 +122,7 @@ func (w *Producer) Ping() error {
 // The logger parameter is an interface that requires the following
 // method to be implemented (such as the the stdlib log.Logger):
 //
-//    Output(calldepth int, s string)
-//
+//	Output(calldepth int, s string)
 func (w *Producer) SetLogger(l logger, lvl LogLevel) {
 	w.logGuard.Lock()
 	defer w.logGuard.Unlock()
@@ -273,9 +274,11 @@ func (w *Producer) sendCommandAsync(cmd *Command, doneChan chan *ProducerTransac
 	}
 
 	t := &ProducerTransaction{
-		cmd:      cmd,
-		doneChan: doneChan,
-		Args:     args,
+		cmd:         cmd,
+		doneChan:    doneChan,
+		Args:        args,
+		retryCount:  0,
+		backoffTime: 0,
 	}
 
 	select {
@@ -344,11 +347,35 @@ func (w *Producer) router() {
 		select {
 		case t := <-w.transactionChan:
 			w.transactions = append(w.transactions, t)
+			fmt.Println("len of transactions: ", len(w.transactions))
+			t.retryCount++
+			// we'd need to do this in a goroutine
+			fmt.Println("sleeping for: ", t.backoffTime)
+			time.Sleep(t.backoffTime)
+
 			err := w.conn.WriteCommand(t.cmd)
 			if err != nil {
-				w.log(LogLevelError, "(%s) sending command - %s", w.conn.String(), err)
-				w.close()
+				if t.retryCount > int(w.config.MaxAttempts) {
+					// without this, we see "not connected" error on client side
+					w.transactions = w.transactions[1:]
+					t.Error = err
+					t.finish()
+
+					// would we want to close on a connection when a max retry count is reached for a single transaction?
+					w.log(LogLevelError, "(%s) sending command - %s", w.conn.String(), err)
+					w.close()
+				} else {
+					t.backoffTime = w.config.BackoffStrategy.Calculate(t.retryCount)
+					go func() {
+						// could this spawn a ridiculous number of goroutines?
+						// blocks unless in goroutine
+						w.transactions = w.transactions[1:]
+						w.transactionChan <- t
+						fmt.Println("added back")
+					}()
+				}
 			}
+
 		case data := <-w.responseChan:
 			w.popTransaction(FrameTypeResponse, data)
 		case data := <-w.errorChan:

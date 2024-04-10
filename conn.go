@@ -9,6 +9,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"math/rand"
 	"net"
 	"strings"
 	"sync"
@@ -119,8 +120,7 @@ func NewConn(addr string, config *Config, delegate ConnDelegate) *Conn {
 // The logger parameter is an interface that requires the following
 // method to be implemented (such as the the stdlib log.Logger):
 //
-//    Output(calldepth int, s string)
-//
+//	Output(calldepth int, s string)
 func (c *Conn) SetLogger(l logger, lvl LogLevel, format string) {
 	c.logGuard.Lock()
 	defer c.logGuard.Unlock()
@@ -293,7 +293,17 @@ func (c *Conn) Write(p []byte) (int, error) {
 func (c *Conn) WriteCommand(cmd *Command) error {
 	c.mtx.Lock()
 
-	_, err := cmd.WriteTo(c)
+	var err error
+	// simulate a failed publish
+	if string(cmd.Name) == "PUB" {
+		// fails half the time
+		if rand.Intn(2) < 2 {
+			err = errors.New("simulated failed publish")
+			c.mtx.Unlock()
+			return err
+		}
+	}
+	_, err = cmd.WriteTo(c)
 	if err != nil {
 		goto exit
 	}
@@ -729,6 +739,7 @@ func (c *Conn) onMessageFinish(m *Message) {
 	c.msgResponseChan <- &msgResponse{msg: m, cmd: Finish(m.ID), success: true}
 }
 
+// TODO (DefaultRequeueDelay, MaxRequeueDelay)
 func (c *Conn) onMessageRequeue(m *Message, delay time.Duration, backoff bool) {
 	if delay == -1 {
 		// linear delay
