@@ -355,6 +355,7 @@ func (w *Producer) router() {
 
 			err := w.conn.WriteCommand(t.cmd)
 			if err != nil {
+				// TODO: certain errors should not be retried
 				if t.retryCount > int(w.config.MaxAttempts) {
 					// without this, we see "not connected" error on client side
 					w.transactions = w.transactions[1:]
