@@ -12,7 +12,7 @@ import (
 // This includes a transparent retry when a publish fails, and a backoff when
 // encountering errors
 type ProducerPool struct {
-	Producers   []*Producer
+	Producers   []ProducerInterface
 	MaxAttempts int
 	next        uint32
 }
@@ -21,7 +21,7 @@ type ProducerPool struct {
 // MaxAttempts is a little misleading as we only do len(producers) attempts if MaxAttempts is greater
 func NewProducerPool(addrs []string, cfg *Config) (*ProducerPool, error) {
 	p := &ProducerPool{
-		Producers: make([]*Producer, len(addrs)),
+		Producers: make([]ProducerInterface, len(addrs)),
 	}
 	for i, a := range addrs {
 		np, err := NewProducer(a, cfg)
@@ -51,7 +51,7 @@ func (p *ProducerPool) Publish(topic string, body []byte) error {
 		if err == nil {
 			return nil
 		}
-		producer.log(LogLevelInfo, "(%s) Publish error - %s", producer.conn.String(), err)
+		// producer.log(LogLevelInfo, "(%s) Publish error - %s", producer.conn.String(), err)
 	}
 	return err
 }
@@ -67,7 +67,7 @@ func (p *ProducerPool) MultiPublish(topic string, body [][]byte) error {
 		if err == nil {
 			return nil
 		}
-		producer.log(LogLevelInfo, "(%s) MultiPublish error - %s", producer.conn.String(), err)
+		// producer.log(LogLevelInfo, "(%s) MultiPublish error - %s", producer.conn.String(), err)
 	}
 	return err
 }
@@ -85,7 +85,7 @@ func (p *ProducerPool) DeferredPublish(topic string, delay time.Duration, body [
 		if err == nil {
 			return nil
 		}
-		producer.log(LogLevelInfo, "(%s) DeferredPublish error - %s", producer.conn.String(), err)
+		// producer.log(LogLevelInfo, "(%s) DeferredPublish error - %s", producer.conn.String(), err)
 	}
 	return err
 }
@@ -124,13 +124,13 @@ func (p *ProducerPool) PublishAsync(topic string, body []byte, doneChan chan *Pr
 					break
 				}
 
-				producer.log(LogLevelInfo, "(%s) PublishAsync error - %s", producer.conn.String(), err)
+				// producer.log(LogLevelInfo, "(%s) PublishAsync error - %s", producer.conn.String(), err)
 				continue
 			}
 
 			transaction := <-ch
 			if transaction.Error != nil && !isLastAttempt {
-				producer.log(LogLevelInfo, "(%s) PublishAsync error - %s", producer.conn.String(), transaction.Error)
+				// producer.log(LogLevelInfo, "(%s) PublishAsync error - %s", producer.conn.String(), transaction.Error)
 				continue
 			}
 			doneChan <- transaction
@@ -170,13 +170,13 @@ func (p *ProducerPool) MultiPublishAsync(topic string, body [][]byte, doneChan c
 					break
 				}
 
-				producer.log(LogLevelInfo, "(%s) PublishAsync error - %s", producer.conn.String(), err)
+				// producer.log(LogLevelInfo, "(%s) PublishAsync error - %s", producer.conn.String(), err)
 				continue
 			}
 
 			transaction := <-ch
 			if transaction.Error != nil && !isLastAttempt {
-				producer.log(LogLevelInfo, "(%s) PublishAsync error - %s", producer.conn.String(), transaction.Error)
+				// producer.log(LogLevelInfo, "(%s) PublishAsync error - %s", producer.conn.String(), transaction.Error)
 				continue
 			}
 			doneChan <- transaction
@@ -216,13 +216,13 @@ func (p *ProducerPool) DeferredPublishAsync(topic string, delay time.Duration, b
 					break
 				}
 
-				producer.log(LogLevelInfo, "(%s) PublishAsync error - %s", producer.conn.String(), err)
+				// producer.log(LogLevelInfo, "(%s) PublishAsync error - %s", producer.conn.String(), err)
 				continue
 			}
 
 			transaction := <-ch
 			if transaction.Error != nil && !isLastAttempt {
-				producer.log(LogLevelInfo, "(%s) PublishAsync error - %s", producer.conn.String(), transaction.Error)
+				// producer.log(LogLevelInfo, "(%s) PublishAsync error - %s", producer.conn.String(), transaction.Error)
 				continue
 			}
 			doneChan <- transaction

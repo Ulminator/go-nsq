@@ -19,6 +19,19 @@ type producerConn interface {
 	WriteCommand(*Command) error
 }
 
+// Can't use Producer as the implementation and interface name
+type ProducerInterface interface {
+	Ping() error
+	Publish(topic string, body []byte) error
+	MultiPublish(topic string, body [][]byte) error
+	DeferredPublish(topic string, delay time.Duration, body []byte) error
+	PublishAsync(topic string, body []byte, doneChan chan *ProducerTransaction, args ...interface{}) error
+	MultiPublishAsync(topic string, body [][]byte, doneChan chan *ProducerTransaction, args ...interface{}) error
+	DeferredPublishAsync(topic string, delay time.Duration, body []byte, doneChan chan *ProducerTransaction, args ...interface{}) error
+	String() string
+	Stop()
+}
+
 // Producer is a high-level type to publish to NSQ.
 //
 // A Producer instance is 1:1 with a destination `nsqd`

@@ -3,7 +3,8 @@ package nsq
 import (
 	"bytes"
 	"errors"
-	"io/ioutil"
+	"fmt"
+	"io"
 	"log"
 	"net"
 	"os"
@@ -48,22 +49,28 @@ func TestProducerConnection(t *testing.T) {
 
 	w, _ := NewProducer("127.0.0.1:4150", config)
 	w.SetLogger(nullLogger, LogLevelInfo)
+	// should we use TestProducer throughout this file?
+	tp := TestProducer{Producer: w}
 
-	err := w.Publish("write_test", []byte("test"))
+	err := tp.Publish("write_test", []byte("test"))
 	if err != nil {
 		t.Fatalf("should lazily connect - %s", err)
 	}
 
 	w.Stop()
 
-	err = w.Publish("write_test", []byte("fail test"))
+	err = tp.Publish("write_test", []byte("fail test"))
 	if err != ErrStopped {
 		t.Fatalf("should not be able to write after Stop()")
+	}
+
+	if tp.Count() != 1 {
+		t.Fatalf(fmt.Sprintf("should have 1 message, got %d", tp.Count()))
 	}
 }
 
 func TestProducerPing(t *testing.T) {
-	log.SetOutput(ioutil.Discard)
+	log.SetOutput(io.Discard)
 	defer log.SetOutput(os.Stdout)
 
 	config := NewConfig()
