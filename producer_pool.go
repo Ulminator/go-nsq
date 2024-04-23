@@ -17,11 +17,17 @@ type ProducerPool struct {
 	next        uint32
 }
 
-// should we have a way to set MaxAttempts in NewProducerPool?
+// TODO: add logging somehow. easy way to set logging for all producers
+
+// should we have a way to set MaxAttempts in NewProducerPool? using Config?
 // MaxAttempts is a little misleading as we only do len(producers) attempts if MaxAttempts is greater
 func NewProducerPool(addrs []string, cfg *Config) (*ProducerPool, error) {
 	p := &ProducerPool{
-		Producers: make([]ProducerInterface, len(addrs)),
+		Producers:   make([]ProducerInterface, len(addrs)),
+		MaxAttempts: 3,
+	}
+	if cfg == nil {
+		cfg = NewConfig()
 	}
 	for i, a := range addrs {
 		np, err := NewProducer(a, cfg)

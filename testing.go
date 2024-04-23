@@ -49,15 +49,19 @@ func (p *TestProducer) Ping() error {
 func (p *TestProducer) Publish(topic string, body []byte) error {
 	p.Lock()
 	defer p.Unlock()
+
+	// modified in sequentialTaint
 	if p.ErrorCount > 0 {
 		p.ErrorCount--
 		return errors.New("publishing message error")
 	}
+
 	if p.Counters == nil {
 		p.Counters = make(map[string]int32)
 	}
 
 	if p.Producer != nil {
+		// we don't ever set Producer in our code...
 		err := p.Producer.Publish(topic, body)
 		if err != nil {
 			// don't increment on failure
@@ -74,7 +78,15 @@ func (p *TestProducer) Publish(topic string, body []byte) error {
 }
 
 func (p *TestProducer) MultiPublish(topic string, body [][]byte) error {
-	return errors.New("not implemented")
+	// do we need to actually implement the MultiPublish method?
+	// DeferredPublish was already using Publish itself
+	for _, b := range body {
+		err := p.Publish(topic, b)
+		if err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 // DeferredPublish is a wrapper on Publish that ignores the delay
@@ -101,10 +113,15 @@ func (p *TestProducer) DeferredPublishAsync(topic string, delay time.Duration, b
 }
 
 func (p *TestProducer) String() string {
-	return "not implemented"
+	if p.Producer != nil {
+		return p.Producer.String()
+	}
+	return "TestProducer"
 }
 
 // Implementation of Stop for TestProducer
 func (p *TestProducer) Stop() {
-	p.Producer.Stop()
+	if p.Producer != nil {
+		p.Producer.Stop()
+	}
 }
