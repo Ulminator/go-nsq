@@ -184,7 +184,6 @@ func (c *Conn) ConnectWithContext(ctx context.Context) (*IdentifyResponse, error
 	// the timeout used is smallest of dialer.Timeout (config.DialTimeout) or context timeout
 	conn, err := dialer.DialContext(ctx, "tcp", c.addr)
 	if err != nil {
-		fmt.Println("dialer.DialContext error: ", err) // TODO: remove
 		return nil, err
 	}
 	c.conn = conn.(*net.TCPConn)
@@ -309,7 +308,6 @@ func (c *Conn) WriteCommandWithContext(ctx context.Context, cmd *Command) error 
 	var err error
 	select {
 	case <-ctx.Done():
-		fmt.Println("WriteCommandWithContext ctx.Done(): ", ctx.Err()) // TODO: remove
 		c.mtx.Unlock()
 		return ctx.Err()
 	default:
