@@ -102,7 +102,7 @@ func NewProducer(addr string, config *Config) (*Producer, error) {
 	return p, nil
 }
 
-// Ping causes the Producer to connect to it's configured nsqd (if not already
+// Ping causes the Producer to connect to its configured nsqd (if not already
 // connected) and send a `Nop` command, returning any error that might occur.
 //
 // This method can be used to verify that a newly-created Producer instance is
@@ -113,6 +113,12 @@ func (w *Producer) Ping() error {
 	return w.PingWithContext(ctx)
 }
 
+// PingWithContext causes the Producer to connect to its configured nsqd (if not already
+// connected) and send a `Nop` command, returning any error that might occur.
+//
+// This method can be used to verify that a newly-created Producer instance is
+// configured correctly, rather than relying on the lazy "connect on Publish"
+// behavior of a Producer.
 func (w *Producer) PingWithContext(ctx context.Context) error {
 	if atomic.LoadInt32(&w.state) != StateConnected {
 		err := w.connect(ctx)
@@ -204,6 +210,13 @@ func (w *Producer) PublishAsync(topic string, body []byte, doneChan chan *Produc
 	return w.PublishAsyncWithContext(ctx, topic, body, doneChan, args...)
 }
 
+// PublishAsyncWithContext publishes a message body to the specified topic
+// but does not wait for the response from `nsqd`.
+//
+// When the Producer eventually receives the response from `nsqd`,
+// the supplied `doneChan` (if specified)
+// will receive a `ProducerTransaction` instance with the supplied variadic arguments
+// and the response error if present
 func (w *Producer) PublishAsyncWithContext(ctx context.Context, topic string, body []byte, doneChan chan *ProducerTransaction,
 	args ...interface{}) error {
 	return w.sendCommandAsync(ctx, Publish(topic, body), doneChan, args)
@@ -222,6 +235,13 @@ func (w *Producer) MultiPublishAsync(topic string, body [][]byte, doneChan chan 
 	return w.MultiPublishAsyncWithContext(ctx, topic, body, doneChan, args...)
 }
 
+// MultiPublishAsyncWithContext publishes a slice of message bodies to the specified topic
+// but does not wait for the response from `nsqd`.
+//
+// When the Producer eventually receives the response from `nsqd`,
+// the supplied `doneChan` (if specified)
+// will receive a `ProducerTransaction` instance with the supplied variadic arguments
+// and the response error if present
 func (w *Producer) MultiPublishAsyncWithContext(ctx context.Context, topic string, body [][]byte, doneChan chan *ProducerTransaction,
 	args ...interface{}) error {
 	cmd, err := MultiPublish(topic, body)
@@ -238,6 +258,8 @@ func (w *Producer) Publish(topic string, body []byte) error {
 	return w.PublishWithContext(ctx, topic, body)
 }
 
+// PublishWithContext synchronously publishes a message body to the specified topic, returning
+// an error if publish failed
 func (w *Producer) PublishWithContext(ctx context.Context, topic string, body []byte) error {
 	return w.sendCommand(ctx, Publish(topic, body))
 }
@@ -249,6 +271,8 @@ func (w *Producer) MultiPublish(topic string, body [][]byte) error {
 	return w.MultiPublishWithContext(ctx, topic, body)
 }
 
+// MultiPublishWithContext synchronously publishes a slice of message bodies to the specified topic, returning
+// an error if publish failed
 func (w *Producer) MultiPublishWithContext(ctx context.Context, topic string, body [][]byte) error {
 	cmd, err := MultiPublish(topic, body)
 	if err != nil {
@@ -265,6 +289,9 @@ func (w *Producer) DeferredPublish(topic string, delay time.Duration, body []byt
 	return w.DeferredPublishWithContext(ctx, topic, delay, body)
 }
 
+// DeferredPublishWithContext synchronously publishes a message body to the specified topic
+// where the message will queue at the channel level until the timeout expires, returning
+// an error if publish failed
 func (w *Producer) DeferredPublishWithContext(ctx context.Context, topic string, delay time.Duration, body []byte) error {
 	return w.sendCommand(ctx, DeferredPublish(topic, delay, body))
 }
@@ -283,6 +310,14 @@ func (w *Producer) DeferredPublishAsync(topic string, delay time.Duration, body 
 	return w.DeferredPublishAsyncWithContext(ctx, topic, delay, body, doneChan, args...)
 }
 
+// DeferredPublishAsyncWithContext publishes a message body to the specified topic
+// where the message will queue at the channel level until the timeout expires
+// but does not wait for the response from `nsqd`.
+//
+// When the Producer eventually receives the response from `nsqd`,
+// the supplied `doneChan` (if specified)
+// will receive a `ProducerTransaction` instance with the supplied variadic arguments
+// and the response error if present
 func (w *Producer) DeferredPublishAsyncWithContext(ctx context.Context, topic string, delay time.Duration, body []byte,
 	doneChan chan *ProducerTransaction, args ...interface{}) error {
 	return w.sendCommandAsync(ctx, DeferredPublish(topic, delay, body), doneChan, args)

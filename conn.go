@@ -175,6 +175,8 @@ func (c *Conn) Connect() (*IdentifyResponse, error) {
 	return c.ConnectWithContext(ctx)
 }
 
+// ConnectWithContext dials and bootstraps the nsqd connection
+// (including IDENTIFY) and returns the IdentifyResponse
 func (c *Conn) ConnectWithContext(ctx context.Context) (*IdentifyResponse, error) {
 	dialer := &net.Dialer{
 		LocalAddr: c.config.LocalAddr,
@@ -301,6 +303,8 @@ func (c *Conn) WriteCommand(cmd *Command) error {
 	return c.WriteCommandWithContext(ctx, cmd)
 }
 
+// WriteCommandWithContext is a goroutine safe method to write a Command
+// to this connection, and flush.
 func (c *Conn) WriteCommandWithContext(ctx context.Context, cmd *Command) error {
 	c.mtx.Lock()
 
