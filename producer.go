@@ -2,6 +2,7 @@ package nsq
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log"
 	"os"
@@ -426,22 +427,16 @@ func (w *Producer) router() {
 			err := w.conn.WriteCommandWithContext(t.ctx, t.cmd)
 			if err != nil {
 				w.log(LogLevelError, "(%s) sending command - %s", w.conn.String(), err)
-
-				switch err {
-				case context.Canceled:
-					w.popTransaction(FrameTypeContextCanceled, []byte(err.Error()))
-					continue
-				case context.DeadlineExceeded:
-					w.popTransaction(FrameTypeContextDeadlineExceeded, []byte(err.Error()))
+				if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
+					w.popTransaction(-1, []byte{}, err)
 					continue
 				}
-
 				w.close()
 			}
 		case data := <-w.responseChan:
-			w.popTransaction(FrameTypeResponse, data)
+			w.popTransaction(FrameTypeResponse, data, nil)
 		case data := <-w.errorChan:
-			w.popTransaction(FrameTypeError, data)
+			w.popTransaction(FrameTypeError, data, nil)
 		case <-w.closeChan:
 			goto exit
 		case <-w.exitChan:
@@ -455,7 +450,7 @@ exit:
 	w.log(LogLevelInfo, "(%s) exiting router", w.conn.String())
 }
 
-func (w *Producer) popTransaction(frameType int32, data []byte) {
+func (w *Producer) popTransaction(frameType int32, data []byte, ctxErr error) {
 	if len(w.transactions) == 0 {
 		dataLen := len(data)
 		if dataLen > 32 {
@@ -470,13 +465,10 @@ func (w *Producer) popTransaction(frameType int32, data []byte) {
 	t := w.transactions[0]
 	w.transactions = w.transactions[1:]
 
-	switch frameType {
-	case FrameTypeError:
+	if frameType == FrameTypeError {
 		t.Error = ErrProtocol{string(data)}
-	case FrameTypeContextCanceled:
-		t.Error = context.Canceled
-	case FrameTypeContextDeadlineExceeded:
-		t.Error = context.DeadlineExceeded
+	} else if ctxErr != nil {
+		t.Error = ctxErr
 	}
 
 	t.finish()
